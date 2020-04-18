@@ -1,0 +1,16 @@
+[package]
+name = "gitmap"
+description = "Persistant key-value store backed by GIT."
+license = "MIT"
+version = "0.1.0"
+authors = ["Kristijan Sedlak <xpepermint@gmail.com>"]
+edition = "2018"
+documentation = "https://github.com/xpepermint/gitmap"
+homepage = "https://github.com/xpepermint/gitmap"
+repository = "https://github.com/xpepermint/gitmap"
+
+[dependencies]
+git2 = "0.13.0"
+
+[dev-dependencies]
+tempfile = "3.1.0"
