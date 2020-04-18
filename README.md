@@ -14,38 +14,6 @@ map.insert_key("key2", "value2".to_bytes());
 map.commit("First commit");
 ```
 
-## Methods
-
-```rs
-// Constructors
-Repo::init(path);
-Repo::open(path);
-// Overview
-repo.path();
-repo.is_empty();
-// Branches
-repo.branches();
-repo.branch();
-repo.switch_branch(name);
-repo.remove_branch();
-repo.has_branch(name);
-// Keys
-repo.keys();
-repo.value(key);
-repo.insert_key(name, value);
-repo.remove_key(name);
-repo.reset_key(name);
-repo.has_key(key);
-repo.key_changed(key);
-repo.len();
-// Operations
-repo.changed();
-repo.remove();
-repo.reset();
-repo.commit(message);
-repo.rollback();
-```
-
 ## To-do
 
 * Add `rollback()`
