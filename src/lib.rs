@@ -201,35 +201,20 @@ impl Repo {
         Ok(())
     }
 
-    /// Stages key for removal.
-    pub fn reset_key(&mut self, name: &str) -> Result<(), Error> {
-        let tree = self.repo.find_tree(self.current_tree_id()?)?;
-        let mut builder = self.repo.treebuilder(Some(&tree))?;
-        if self.has_key(name) {
-            builder.remove(name)?;
-        }
-        if self.has_commits() {
-            let tree = self.repo.find_tree(self.last_tree_id()?)?;
-            if tree.get_name(name) != None {
-                let entry = tree.get_path(Path::new(name))?;
-                let blob = entry.to_object(&self.repo)?;
-                let blob = blob.as_blob().unwrap();
-                let oid = self.repo.blob(&blob.content())?;
-                builder.insert(name, oid, 0o100644)?;
-            }
-        }
-        self.tree_id = Some(builder.write()?);
+    /// Reset all keys.
+    pub fn reset(&mut self) -> Result<(), Error> {
+        self.tree_id = None;
         Ok(())
     }
 
-    /// Stages key for removal.
-    pub fn remove_key(&mut self, name: &str) -> Result<(), Error> {
-        if self.has_key(name) {
-            let tree = self.repo.find_tree(self.current_tree_id()?)?;
-            let mut builder = self.repo.treebuilder(Some(&tree))?;
-            builder.remove(name)?;
-            self.tree_id = Some(builder.write()?);
+    /// Remove all keys.
+    pub fn remove(&mut self) -> Result<(), Error> {
+        let tree = self.repo.find_tree(self.current_tree_id()?)?;
+        let mut builder = self.repo.treebuilder(Some(&tree))?;
+        for key in self.keys() {
+            builder.remove(key)?;
         }
+        self.tree_id = Some(builder.write()?);
         Ok(())
     }
 
@@ -260,6 +245,52 @@ impl Repo {
         diff.deltas().len() > 0
     }
 
+    /// Commits data.
+    pub fn commit(&self, message: &str) -> Result<(), Error> {
+        let tree_id = self.current_tree_id()?;
+        let tree = self.repo.find_tree(tree_id)?;
+        let sig = self.repo.signature()?;
+        if !self.has_commits() {
+            self.repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[])?;
+        } else {
+            let commit = self.repo.find_commit(self.last_commit_id()?)?;
+            self.repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&commit])?;
+        }
+        Ok(())
+    }
+
+    /// Stages key for removal.
+    pub fn reset_key(&mut self, name: &str) -> Result<(), Error> {
+        let tree = self.repo.find_tree(self.current_tree_id()?)?;
+        let mut builder = self.repo.treebuilder(Some(&tree))?;
+        if self.has_key(name) {
+            builder.remove(name)?;
+        }
+        if self.has_commits() {
+            let tree = self.repo.find_tree(self.last_tree_id()?)?;
+            if tree.get_name(name) != None {
+                let entry = tree.get_path(Path::new(name))?;
+                let blob = entry.to_object(&self.repo)?;
+                let blob = blob.as_blob().unwrap();
+                let oid = self.repo.blob(&blob.content())?;
+                builder.insert(name, oid, 0o100644)?;
+            }
+        }
+        self.tree_id = Some(builder.write()?);
+        Ok(())
+    }
+    
+    /// Stages key for removal.
+    pub fn remove_key(&mut self, name: &str) -> Result<(), Error> {
+        if self.has_key(name) {
+            let tree = self.repo.find_tree(self.current_tree_id()?)?;
+            let mut builder = self.repo.treebuilder(Some(&tree))?;
+            builder.remove(name)?;
+            self.tree_id = Some(builder.write()?);
+        }
+        Ok(())
+    }
+    
     /// Returns true if the key content has been changed.
     pub fn key_changed(&self, name: &str) -> bool {
         if !self.has_commits() {
@@ -298,38 +329,7 @@ impl Repo {
         }
         false
    }
-
-    /// Reset all keys.
-    pub fn reset(&mut self) -> Result<(), Error> {
-        self.tree_id = None;
-        Ok(())
-    }
-
-    /// Remove all keys.
-    pub fn remove(&mut self) -> Result<(), Error> {
-        let tree = self.repo.find_tree(self.current_tree_id()?)?;
-        let mut builder = self.repo.treebuilder(Some(&tree))?;
-        for key in self.keys() {
-            builder.remove(key)?;
-        }
-        self.tree_id = Some(builder.write()?);
-        Ok(())
-    }
     
-    /// Commit data.
-    pub fn commit(&self, message: &str) -> Result<(), Error> {
-        let tree_id = self.current_tree_id()?;
-        let tree = self.repo.find_tree(tree_id)?;
-        let sig = self.repo.signature()?;
-        if !self.has_commits() {
-            self.repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[])?;
-        } else {
-            let commit = self.repo.find_commit(self.last_commit_id()?)?;
-            self.repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&commit])?;
-        }
-        Ok(())
-    }
-
     /// Roll back one commit.
     // pub fn rollback(&self) -> Result<(), Error> {
     //     // Hints (I think):
@@ -438,7 +438,7 @@ mod tests {
     }
 
     #[test]
-    fn provides_branchs() {
+    fn provides_branches() {
         let path = TempDir::new().unwrap().path().to_owned();
         let repo = Repo::init(&path).unwrap();
         assert_eq!(repo.branches().len(), 0);
@@ -496,6 +496,7 @@ mod tests {
         repo.commit("").unwrap(); // initial commit
         assert_eq!(repo.remove_branch("master").is_err(), true); // can't remove working branch
         repo.switch_branch("foo").unwrap();
+        assert_eq!(repo.branches(), ["foo", "master"]);
         assert_eq!(repo.remove_branch("foo").is_err(), true); // can't remove working branch
         repo.switch_branch("master").unwrap();
         assert_eq!(repo.remove_branch("foo").is_ok(), true);
